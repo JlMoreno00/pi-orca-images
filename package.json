@@ -1,7 +1,7 @@
 {
   "name": "pi-orca-images",
-  "version": "0.2.1",
-  "description": "Inline images for the Pi coding agent inside Orca's terminal",
+  "version": "0.2.2",
+  "description": "Inline images for Pi inside Orca's terminal, plus [Image N] paste labels",
   "type": "module",
   "license": "MIT",
   "author": "JlMoreno00",
@@ -29,7 +29,8 @@
   "pi": {
     "extensions": [
       "./src/index.ts"
-    ]
+    ],
+    "image": "https://raw.githubusercontent.com/JlMoreno00/pi-orca-images/main/docs/before-after.png"
   },
   "engines": {
     "node": ">=22.18"

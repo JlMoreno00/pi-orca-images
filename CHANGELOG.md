@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.2
+
+- Gallery: preview image (`pi.image`) and shorter description for the pi.dev package page.
+- README: absolute links so images render on pi.dev.
+
 ## 0.2.1
 
 - README: banner, before/after screenshot and a demo GIF of the `[Image N]` labels.

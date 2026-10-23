@@ -5,7 +5,7 @@
 <p align="center">
   <a href="https://www.npmjs.com/package/pi-orca-images"><img src="https://img.shields.io/npm/v/pi-orca-images?color=8ab4f8&label=npm" alt="npm version"></a>
   <a href="https://github.com/JlMoreno00/pi-orca-images/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/JlMoreno00/pi-orca-images/ci.yml?branch=main&label=ci" alt="CI"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/npm/l/pi-orca-images?color=8b92a3" alt="MIT license"></a>
+  <a href="https://github.com/JlMoreno00/pi-orca-images/blob/main/LICENSE"><img src="https://img.shields.io/npm/l/pi-orca-images?color=8b92a3" alt="MIT license"></a>
   <a href="https://pi.dev/packages"><img src="https://img.shields.io/badge/pi-package-ec4899" alt="Pi package"></a>
 </p>
 
