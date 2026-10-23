@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Show pasted image paths as bold, colored `[Image N]` labels in the prompt; they expand back to the path on send. `PI_IMAGE_LABELS=0` turns them off.
+- `/orca-images status` reports whether image labels are on.
+
 ## 0.1.0
 
 - Detect Orca from `ORCA_IMAGE_PROTOCOL` and enable Pi's inline images.

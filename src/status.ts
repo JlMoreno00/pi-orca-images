@@ -6,9 +6,10 @@ export interface StatusInput {
 	images: string | null | undefined;
 	shim: Pick<Shim, "renderPatched" | "focusPatched" | "recoveries"> | undefined;
 	orcaVersion: string | undefined;
+	labels: boolean;
 }
 
-export function formatStatus({ decision, images, shim, orcaVersion }: StatusInput): string {
+export function formatStatus({ decision, images, shim, orcaVersion, labels }: StatusInput): string {
 	const action = decision.action === "apply" ? `apply ${decision.protocol}` : decision.action;
 	const repaint = shim
 		? `repaint fix: ${shim.renderPatched ? "on" : "unavailable"}, focus recovery: ${
@@ -20,6 +21,7 @@ export function formatStatus({ decision, images, shim, orcaVersion }: StatusInpu
 		`  decision: ${action}: ${decision.reason}`,
 		`  Pi image protocol: ${images ?? "none"}`,
 		`  ${repaint}`,
+		`  image labels: ${labels ? "on" : "off (PI_IMAGE_LABELS)"}`,
 		`  Orca: ${orcaVersion ?? "not detected"}`,
 	].join("\n");
 }

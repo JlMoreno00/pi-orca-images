@@ -1,7 +1,8 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Container, getCapabilities, Image, resetCapabilitiesCache, Text } from "@earendil-works/pi-tui";
 import { completeSubcommand, SUBCOMMANDS } from "./commands.ts";
-import { decide, type Decision, OWNED_ENV } from "./detect.ts";
+import { decide, type Decision, labelsEnabled, OWNED_ENV } from "./detect.ts";
+import { type EditorWatcher, watchEditors } from "./labels.ts";
 import { installShim, type Shim, type ShimTarget } from "./shim.ts";
 import { formatStatus } from "./status.ts";
 import { testImagePng } from "./test-image.ts";
@@ -28,19 +29,30 @@ function applyDecision(decision: Decision, env = process.env): void {
 export default function piOrcaImages(pi: ExtensionAPI) {
 	const decision = decide(process.env);
 	applyDecision(decision);
+	const labels = labelsEnabled(process.env);
 	let shim: Shim | undefined;
+	let watcher: EditorWatcher | undefined;
 
 	pi.on("session_start", async (_event, ctx) => {
-		if (decision.action !== "apply" || decision.protocol !== "kitty" || !ctx.hasUI) return;
+		const repaint = decision.action === "apply" && decision.protocol === "kitty";
+		if (!ctx.hasUI || (!repaint && !labels)) return;
 		// The widget factory is the only public hook that hands an extension the TUI instance.
 		ctx.ui.setWidget(WIDGET, (tui) => {
-			shim = installShim(tui as unknown as ShimTarget);
+			if (repaint) shim = installShim(tui as unknown as ShimTarget);
+			if (labels) {
+				watcher = watchEditors(tui as unknown as ShimTarget, {
+					style: (label) => ctx.ui.theme.fg("accent", ctx.ui.theme.bold(label)),
+				});
+			}
 			return { render: () => [], invalidate() {} };
 		});
 		ctx.ui.setWidget(WIDGET, undefined);
 	});
 
 	pi.on("session_shutdown", async () => {
+		// Reverse install order: the watcher wraps the shim's render wrapper.
+		watcher?.uninstall();
+		watcher = undefined;
 		shim?.uninstall();
 		shim = undefined;
 	});
@@ -69,6 +81,7 @@ export default function piOrcaImages(pi: ExtensionAPI) {
 						images: getCapabilities().images,
 						shim,
 						orcaVersion: process.env.ORCA_APP_VERSION ?? process.env.TERM_PROGRAM_VERSION,
+						labels: labels && watcher !== undefined,
 					}),
 					"info",
 				);

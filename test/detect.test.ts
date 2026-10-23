@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { decide, OWNED_ENV } from "../src/detect.ts";
+import { decide, labelsEnabled, OWNED_ENV } from "../src/detect.ts";
 
 const orca = { TERM_PROGRAM: "Orca", ORCA_IMAGE_PROTOCOL: "kitty" };
 
@@ -85,4 +85,17 @@ describe("decide", () => {
 	it("clears an inherited value outside Orca", () => {
 		assert.equal(decide({ PI_IMAGE_PROTOCOL: "kitty", [OWNED_ENV]: "kitty" }).action, "clear-inherited");
 	});
+});
+
+describe("labelsEnabled", () => {
+	it("is on by default, in any terminal", () => {
+		assert.equal(labelsEnabled({}), true);
+		assert.equal(labelsEnabled({ TERM_PROGRAM: "ghostty" }), true);
+	});
+
+	for (const value of ["0", "false", "off", "no"]) {
+		it(`is off with PI_IMAGE_LABELS=${value}`, () => {
+			assert.equal(labelsEnabled({ PI_IMAGE_LABELS: value }), false);
+		});
+	}
 });

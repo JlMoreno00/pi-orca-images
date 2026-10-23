@@ -42,3 +42,8 @@ export function decide(env: Env): Decision {
 	}
 	return { action: "apply", protocol, reason: `Orca detected (ORCA_IMAGE_PROTOCOL=${advertised})` };
 }
+
+/** Pasted-image labels work in any terminal; PI_IMAGE_LABELS=0 turns them off. */
+export function labelsEnabled(env: Env): boolean {
+	return !DISABLED.has((env.PI_IMAGE_LABELS ?? "").toLowerCase());
+}
