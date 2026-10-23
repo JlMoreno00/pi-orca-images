@@ -38,7 +38,14 @@ export default function piOrcaImages(pi: ExtensionAPI) {
 		if (!ctx.hasUI || (!repaint && !labels)) return;
 		// The widget factory is the only public hook that hands an extension the TUI instance.
 		ctx.ui.setWidget(WIDGET, (tui) => {
-			if (repaint) shim = installShim(tui as unknown as ShimTarget);
+			if (repaint) {
+				shim = installShim(tui as unknown as ShimTarget);
+				// Resend whatever Pi drew before the fix was in place (first startup render, or a
+				// session switch on a Pi that calls this factory late). Deferred: Pi may call the
+				// factory while it renders.
+				const installed = shim;
+				setTimeout(() => installed.recover(), 0);
+			}
 			if (labels) {
 				watcher = watchEditors(tui as unknown as ShimTarget, {
 					style: (label) => ctx.ui.theme.fg("accent", ctx.ui.theme.bold(label)),
@@ -47,16 +54,16 @@ export default function piOrcaImages(pi: ExtensionAPI) {
 			return { render: () => [], invalidate() {} };
 		});
 		ctx.ui.setWidget(WIDGET, undefined);
-		// On /resume, /new and /fork Pi renders the transcript before session_start, so its images
-		// were drawn without the fix and only their first row survives. Resend them all.
-		shim?.recover();
 	});
 
-	pi.on("session_shutdown", async () => {
-		// Reverse install order: the watcher wraps the shim's render wrapper.
+	pi.on("session_shutdown", async (event) => {
+		// The watcher styles labels through this session's ctx, which goes stale on replacement.
 		watcher?.uninstall();
 		watcher = undefined;
-		shim?.uninstall();
+		// On /resume, /new, /fork and /reload Pi draws the next transcript before session_start,
+		// so the repaint fix must stay in place; the next session reuses it (installShim is
+		// idempotent per TUI). Only quitting removes it.
+		if (event.reason === "quit") shim?.uninstall();
 		shim = undefined;
 	});
 

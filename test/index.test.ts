@@ -32,17 +32,24 @@ function load() {
 	return handlers;
 }
 
-function ctxFor(tui: ReturnType<typeof fakeTui>) {
+type Factory = (tui: unknown, theme: unknown) => unknown;
+
+/** lazy: store the widget factory like Pi does while it rebinds a replaced session. */
+function ctxFor(tui: ReturnType<typeof fakeTui>, lazy?: Factory[]) {
 	return {
 		hasUI: true,
 		ui: {
 			theme: { fg: (_c: string, s: string) => s, bold: (s: string) => s },
-			setWidget(_key: string, factory?: (tui: unknown, theme: unknown) => unknown) {
-				factory?.(tui, {});
+			setWidget(_key: string, factory?: Factory) {
+				if (!factory) return;
+				if (lazy) lazy.push(factory);
+				else factory(tui, {});
 			},
 		},
 	};
 }
+
+const tick = () => new Promise((resolve) => setTimeout(resolve, 5));
 
 describe("session lifecycle in Orca", () => {
 	before(() => {
@@ -64,10 +71,48 @@ describe("session lifecycle in Orca", () => {
 			const tui = fakeTui();
 			const handlers = load();
 			await handlers.get("session_start")?.({ type: "session_start", reason }, ctxFor(tui));
-			// Pi renders the resumed transcript before session_start, without the fix.
+			await tick();
+			// Anything Pi drew before the fix was installed is sent again in full.
 			assert.equal(tui.cleared(), 1);
 			assert.deepEqual(tui.renders, [true]);
 			await handlers.get("session_shutdown")?.({ type: "session_shutdown", reason: "quit" }, ctxFor(tui));
 		});
 	}
+
+	it("redraws when Pi calls the widget factory after session_start", async () => {
+		const tui = fakeTui();
+		const lazy: Factory[] = [];
+		const handlers = load();
+		await handlers.get("session_start")?.({ type: "session_start", reason: "resume" }, ctxFor(tui, lazy));
+		for (const factory of lazy) factory(tui, {});
+		await tick();
+		assert.equal(tui.cleared(), 1);
+		assert.deepEqual(tui.renders, [true]);
+		await handlers.get("session_shutdown")?.({ type: "session_shutdown", reason: "quit" }, ctxFor(tui));
+	});
+
+	for (const reason of ["resume", "new", "fork", "reload"]) {
+		it(`keeps the repaint fix across session replacement (${reason})`, async () => {
+			const tui = fakeTui();
+			const render = tui.doRender;
+			const handlers = load();
+			await handlers.get("session_start")?.({ type: "session_start", reason: "startup" }, ctxFor(tui));
+			await handlers.get("session_shutdown")?.({ type: "session_shutdown", reason }, ctxFor(tui));
+			// Pi draws the next session's transcript before session_start: the fix must still be there.
+			assert.notEqual(tui.doRender, render);
+			const next = load();
+			await next.get("session_start")?.({ type: "session_start", reason }, ctxFor(tui));
+			await next.get("session_shutdown")?.({ type: "session_shutdown", reason: "quit" }, ctxFor(tui));
+			assert.equal(tui.doRender, render);
+		});
+	}
+
+	it("removes the repaint fix on quit", async () => {
+		const tui = fakeTui();
+		const render = tui.doRender;
+		const handlers = load();
+		await handlers.get("session_start")?.({ type: "session_start", reason: "startup" }, ctxFor(tui));
+		await handlers.get("session_shutdown")?.({ type: "session_shutdown", reason: "quit" }, ctxFor(tui));
+		assert.equal(tui.doRender, render);
+	});
 });
