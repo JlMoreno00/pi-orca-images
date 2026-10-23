@@ -47,6 +47,9 @@ export default function piOrcaImages(pi: ExtensionAPI) {
 			return { render: () => [], invalidate() {} };
 		});
 		ctx.ui.setWidget(WIDGET, undefined);
+		// On /resume, /new and /fork Pi renders the transcript before session_start, so its images
+		// were drawn without the fix and only their first row survives. Resend them all.
+		shim?.recover();
 	});
 
 	pi.on("session_shutdown", async () => {

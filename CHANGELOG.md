@@ -4,6 +4,7 @@
 
 - Show pasted image paths as bold, colored `[Image N]` labels in the prompt; they expand back to the path on send. `PI_IMAGE_LABELS=0` turns them off.
 - `/orca-images status` reports whether image labels are on.
+- Fix: images in a session opened with `/resume`, `/new` or `/fork` showed only their first row; they are now redrawn in full.
 
 ## 0.1.0
 
