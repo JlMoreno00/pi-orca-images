@@ -1,6 +1,6 @@
 {
   "name": "pi-orca-images",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "Inline images for Pi inside Orca's terminal, plus [Image N] paste labels.",
   "type": "module",
   "license": "MIT",
