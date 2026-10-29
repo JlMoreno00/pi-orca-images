@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { FOCUS_IN, installShim, RECOVERY_DELAYS_MS, type ShimTarget } from "../src/shim.ts";
+import { piTuiProxy } from "./pi-tui-proxy.ts";
 
 function fakeTui(env: Record<string, string | undefined>) {
 	const seen: Array<string | undefined> = [];
@@ -140,6 +141,17 @@ describe("installShim lifecycle", () => {
 		assert.equal(tui.handleViewportInput, input);
 		assert.equal(timers.pending.size, 0);
 		assert.notEqual(installShim(tui, { env: {} }), shim);
+	});
+
+	it("uninstalls through Pi's TUI proxy", () => {
+		const env: Record<string, string | undefined> = {};
+		const tui = fakeTui(env);
+		const proxy = piTuiProxy(() => tui);
+		const shim = installShim(proxy, { env });
+		shim.uninstall();
+		assert.equal(tui.doRender?.(), "rendered");
+		assert.deepEqual(tui.seen, [undefined]);
+		assert.notEqual(installShim(proxy, { env }), shim);
 	});
 
 	it("reports missing hooks on a TUI without them", () => {

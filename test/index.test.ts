@@ -1,6 +1,13 @@
 import assert from "node:assert/strict";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { after, before, describe, it } from "node:test";
+import { Editor } from "@earendil-works/pi-tui";
 import piOrcaImages from "../src/index.ts";
+import { piTuiProxy } from "./pi-tui-proxy.ts";
+
+const STALE = "This extension ctx is stale after session replacement or reload.";
 
 const ENV_KEYS = ["TERM_PROGRAM", "ORCA_IMAGE_PROTOCOL", "PI_IMAGE_PROTOCOL", "PI_ORCA_IMAGES_OWNED", "TMUX", "TERM"];
 let saved: Record<string, string | undefined> = {};
@@ -104,6 +111,58 @@ describe("session lifecycle in Orca", () => {
 			await next.get("session_start")?.({ type: "session_start", reason }, ctxFor(tui));
 			await next.get("session_shutdown")?.({ type: "session_shutdown", reason: "quit" }, ctxFor(tui));
 			assert.equal(tui.doRender, render);
+		});
+	}
+
+	for (const reason of ["resume", "new", "fork", "reload"]) {
+		it(`styles image labels with the live session after replacement (${reason})`, async () => {
+			const dir = mkdtempSync(join(tmpdir(), "pi-orca-images-"));
+			const image = join(dir, "shot.png");
+			writeFileSync(image, "");
+			try {
+				const editor = new Editor({ terminal: { rows: 40, columns: 80 }, requestRender() {} } as never, {
+					borderColor: (s: string) => s,
+					selectList: {} as never,
+				});
+				const tui = Object.assign(fakeTui(), { children: [editor] as unknown[] });
+				const proxy = piTuiProxy(() => tui);
+				// Like Pi's ExtensionRunner: once the session is replaced, every ctx.ui read throws.
+				const session = (color: string) => {
+					let stale = false;
+					const ctx = {
+						hasUI: true,
+						get ui() {
+							if (stale) throw new Error(STALE);
+							return {
+								theme: { fg: (_c: string, s: string) => `<${color}:${s}>`, bold: (s: string) => s },
+								setWidget(_key: string, factory?: Factory) {
+									factory?.(proxy, {});
+								},
+							};
+						},
+					};
+					return { ctx, invalidate: () => void (stale = true) };
+				};
+				const first = session("old");
+				const handlers = load();
+				await handlers.get("session_start")?.({ type: "session_start", reason: "startup" }, first.ctx);
+				tui.doRender();
+				await handlers.get("session_shutdown")?.({ type: "session_shutdown", reason }, first.ctx);
+				first.invalidate();
+				// Pi draws the next transcript before the next session_start.
+				tui.doRender();
+				const second = session("new");
+				const next = load();
+				await next.get("session_start")?.({ type: "session_start", reason }, second.ctx);
+				tui.doRender();
+				editor.handleInput(`\x1b[200~${image}\x1b[201~`);
+				tui.doRender();
+				const body = editor.render(80).join("\n");
+				assert.match(body, /<new:\[Image 1\]>/);
+				await next.get("session_shutdown")?.({ type: "session_shutdown", reason: "quit" }, second.ctx);
+			} finally {
+				rmSync(dir, { recursive: true, force: true });
+			}
 		});
 	}
 

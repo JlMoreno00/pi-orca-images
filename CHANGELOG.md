@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Fix: Pi crashed with "This extension ctx is stale after session replacement or reload" when an `[Image N]` label was in the prompt after `/resume`, `/new`, `/fork` or `/reload`. Pi hands extensions a Proxy over the TUI that ignores `delete`, so the old session's render hook was never removed and kept styling labels with its stale ctx.
+
 ## 0.2.2
 
 - Gallery: preview image (`pi.image`) and shorter description for the pi.dev package page.

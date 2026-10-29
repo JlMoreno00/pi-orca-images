@@ -189,18 +189,24 @@ export interface EditorWatcher {
 /**
  * Label every editor in the TUI tree, checked before each render. Pi and extensions can swap the
  * editor at any time (custom editors, settings changes), so a one-time lookup is not enough.
+ *
+ * Pi hands extensions a Proxy over the TUI whose own-property checks and deletes never reach the
+ * TUI, so uninstall restores by assignment and the wrapper turns inert even if something else
+ * still holds it: a leftover wrapper would relabel editors with a stale session's style.
  */
 export function watchEditors(
 	tui: { doRender?: (...args: unknown[]) => unknown },
 	options: LabelOptions,
 ): EditorWatcher {
 	const installed = new Map<LabelTarget, ImageLabels>();
-	const hadOwn = Object.hasOwn(tui, "doRender");
 	const originalRender = tui.doRender;
+	let active = true;
 	if (originalRender) {
 		tui.doRender = function (this: unknown, ...args: unknown[]) {
-			for (const editor of findEditors(tui)) {
-				if (!installed.has(editor)) installed.set(editor, installImageLabels(editor, options));
+			if (active) {
+				for (const editor of findEditors(tui)) {
+					if (!installed.has(editor)) installed.set(editor, installImageLabels(editor, options));
+				}
 			}
 			return originalRender.apply(this, args);
 		};
@@ -210,11 +216,10 @@ export function watchEditors(
 			return installed.size;
 		},
 		uninstall() {
+			active = false;
 			for (const labels of installed.values()) labels.uninstall();
 			installed.clear();
-			if (!originalRender) return;
-			if (hadOwn) tui.doRender = originalRender;
-			else delete tui.doRender;
+			if (originalRender) tui.doRender = originalRender;
 		},
 	};
 }

@@ -85,7 +85,8 @@ export function installShim(tui: ShimTarget, options: ShimOptions = {}): Shim {
 			cancel();
 			if (shim.renderPatched) tui.doRender = originalRender;
 			if (shim.focusPatched) tui.handleViewportInput = originalInput;
-			delete host[SHIM];
+			// Assign, not delete: a delete through Pi's TUI Proxy never reaches the TUI.
+			host[SHIM] = undefined;
 		},
 	};
 

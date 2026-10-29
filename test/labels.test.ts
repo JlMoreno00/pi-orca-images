@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { Editor } from "@earendil-works/pi-tui";
 import { findEditors, installImageLabels, type LabelTarget } from "../src/labels.ts";
+import { piTuiProxy } from "./pi-tui-proxy.ts";
 
 const PASTE = (text: string) => `\x1b[200~${text}\x1b[201~`;
 const BACKSPACE = "\x7f";
@@ -163,6 +164,27 @@ describe("watchEditors", () => {
 		assert.equal(watcher.editors, 1);
 		watcher.uninstall();
 		assert.equal(host.doRender, render);
+		editor.handleInput(PASTE("/tmp/b.png"));
+		assert.equal(editor.getText(), "[Image 1] /tmp/b.png");
+	});
+
+	it("uninstalls through Pi's TUI proxy", async () => {
+		const { watchEditors } = await import("../src/labels.ts");
+		const tui = { terminal: { rows: 40, columns: 80 }, requestRender() {} };
+		const editor = new Editor(tui as never, { borderColor: (s: string) => s, selectList: {} as never });
+		const host = {
+			children: [editor] as unknown[],
+			doRender() {
+				return "rendered";
+			},
+		};
+		const watcher = watchEditors(piTuiProxy(() => host), { style: (s) => s, isImageFile: (p) => IMAGES.has(p) });
+		assert.equal(host.doRender(), "rendered");
+		editor.handleInput(PASTE("/tmp/a.png"));
+		assert.equal(editor.getText(), "[Image 1] ");
+		watcher.uninstall();
+		// Pi keeps rendering after the session is replaced; the old watcher must not relabel.
+		assert.equal(host.doRender(), "rendered");
 		editor.handleInput(PASTE("/tmp/b.png"));
 		assert.equal(editor.getText(), "[Image 1] /tmp/b.png");
 	});
