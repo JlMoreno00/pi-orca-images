@@ -43,13 +43,15 @@ Paste an image (or drop an image file) into Pi's prompt and the path is shown as
 
 It recognizes pastes made only of existing image files (`png`, `jpg`, `gif`, `webp`, `bmp`, `tiff`, `heic`, `avif`): plain paths, `~/` paths, quoted or backslash-escaped paths, and `file://` URLs. Text that mixes a path with other words is left alone. This works in every terminal, not only Orca, including Pi's own clipboard paste. Set `PI_IMAGE_LABELS=0` to turn it off.
 
-## Open images in Orca
+## Open image previews
 
-Each rendered image gets an **Open image** link beneath it. **Cmd-click** the link on macOS to open the preview in Orca's image tab and use its zoom controls. You can also run `/orca-images open` to open the last image rendered by Pi. Direct clicks on the image and hover-to-zoom are not supported.
+Each rendered image gets an **Open image** file link beneath it. **Cmd-click** the link on macOS to open the preview through your terminal. In our Orca test, this opens an Orca image tab with zoom controls. Direct image clicks and hover-to-zoom are not supported.
 
-Orca requires workspace-local files, so preview copies are saved under `.pi/image-previews/` in the working directory. The directory contains its own `.gitignore`. Copies remain across reloads; delete the directory when you no longer need the previews. The saved bytes are those available to Pi and may already have been resized by a tool.
+On macOS, `/orca-images open` opens the last image rendered by Pi in **Preview**, using `open -a Preview`.
 
-Previews require automatic Orca detection and a writable workspace. They are inactive when `PI_ORCA_IMAGES=0` or an explicit `PI_IMAGE_PROTOCOL` overrides detection. The open command requires an Orca CLI with `file open` support. Links and the command were tested with Pi 1.5.2 on macOS.
+Preview copies are saved in a private `pi-orca-images-*` directory under the OS temporary directory, never in the project. Identical images reuse a file within each loaded extension instance. Files survive `/reload` and are deleted on normal Pi process exit; links expire when their files are removed. Crashes or forced termination can leave files behind, and long-running sessions can still accumulate previews. Older `.pi/image-previews/` folders are not automatically removed.
+
+The saved bytes are those available to Pi and may already have been resized by a tool. Previews require automatic Orca detection and a writable temporary directory. They are inactive when `PI_ORCA_IMAGES=0` or an explicit `PI_IMAGE_PROTOCOL` overrides detection. The link and Preview command were tested with Pi 1.5.2 on macOS; opening through the command requires macOS Preview.
 
 ## Commands
 
@@ -57,7 +59,7 @@ Previews require automatic Orca detection and a writable workspace. They are ina
 |---|---|
 | `/orca-images` or `/orca-images status` | Shows the detection decision, Pi's active image protocol, and whether the repaint fix and image labels are on |
 | `/orca-images test` | Draws a test gradient (it is not sent to the model) |
-| `/orca-images open` | Opens the last rendered image in an Orca image tab |
+| `/orca-images open` | Opens the last rendered image in macOS Preview |
 | `/orca-images redraw` | Re-sends every visible image right now |
 
 ## Configuration
