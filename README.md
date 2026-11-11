@@ -43,21 +43,30 @@ Paste an image (or drop an image file) into Pi's prompt and the path is shown as
 
 It recognizes pastes made only of existing image files (`png`, `jpg`, `gif`, `webp`, `bmp`, `tiff`, `heic`, `avif`): plain paths, `~/` paths, quoted or backslash-escaped paths, and `file://` URLs. Text that mixes a path with other words is left alone. This works in every terminal, not only Orca, including Pi's own clipboard paste. Set `PI_IMAGE_LABELS=0` to turn it off.
 
+## Open images in Orca
+
+Each rendered image gets an **Open image** link beneath it. **Cmd-click** the link on macOS to open the preview in Orca's image tab and use its zoom controls. You can also run `/orca-images open` to open the last image rendered by Pi. Direct clicks on the image and hover-to-zoom are not supported.
+
+Orca requires workspace-local files, so preview copies are saved under `.pi/image-previews/` in the working directory. The directory contains its own `.gitignore`. Copies remain across reloads; delete the directory when you no longer need the previews. The saved bytes are those available to Pi and may already have been resized by a tool.
+
+Previews require automatic Orca detection and a writable workspace. They are inactive when `PI_ORCA_IMAGES=0` or an explicit `PI_IMAGE_PROTOCOL` overrides detection. The open command requires an Orca CLI with `file open` support. Links and the command were tested with Pi 1.5.2 on macOS.
+
 ## Commands
 
 | Command | Effect |
 |---|---|
 | `/orca-images` or `/orca-images status` | Shows the detection decision, Pi's active image protocol, and whether the repaint fix and image labels are on |
 | `/orca-images test` | Draws a test gradient (it is not sent to the model) |
+| `/orca-images open` | Opens the last rendered image in an Orca image tab |
 | `/orca-images redraw` | Re-sends every visible image right now |
 
 ## Configuration
 
-It does nothing outside Orca. Your explicit choices always win:
+The rendering fixes and preview links activate only in Orca; pasted image labels can work in any terminal. Your explicit choices always win:
 
 | Setting | Effect |
 |---|---|
-| `PI_ORCA_IMAGES=0` | Disables the Orca image fixes |
+| `PI_ORCA_IMAGES=0` | Disables the Orca image fixes and preview feature |
 | `PI_IMAGE_LABELS=0` | Disables pasted image labels |
 | `PI_IMAGE_PROTOCOL=…` | Used as is; the package does not override it |
 | `terminal.images` in Pi settings | Applied by Pi on top of the package's choice |
@@ -69,6 +78,7 @@ It does nothing outside Orca. Your explicit choices always win:
 - Pi 1.4 in its default `fullscreen` TUI mode. In `regular` mode detection still works, but the repaint fix and tab recovery do not apply.
 - Not inside tmux or screen: image escapes do not reach Orca through them.
 - Image labels wrap internal methods of Pi's editor (`handlePaste`, `segment`, `expandPasteMarkers`, `render`). If a Pi release changes them, pasted paths simply stay as paths.
+- Preview links read internal fields of Pi's image component. If those fields change or preview copies cannot be saved, links are omitted.
 - The repaint fix wraps two internal methods of Pi's TUI. If a Pi release renames them, `/orca-images status` reports the fix as `unavailable` and images fall back to the first-row behavior; detection keeps working.
 
 ## Development
