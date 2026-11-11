@@ -1,4 +1,4 @@
-export const SUBCOMMANDS = ["status", "test", "redraw"] as const;
+export const SUBCOMMANDS = ["status", "test", "redraw", "open"] as const;
 
 /**
  * Argument completions for /orca-images. A complete subcommand yields none, so the first
