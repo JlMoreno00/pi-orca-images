@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { existsSync, readFileSync } from "node:fs";
 import { it } from "node:test";
 import { Container, Image } from "@earendil-works/pi-tui";
 import { installPreviews, savePreview } from "../src/preview.ts";
@@ -40,13 +41,13 @@ it("reports open failures and leaves images usable when saving fails", async () 
 	} finally { previews.uninstall(); }
 	previews = installPreviews({
 		save: () => "/tmp/image.png",
-		open: async () => { throw new Error("Orca unavailable"); },
+		open: async () => { throw new Error("Preview unavailable"); },
 		onError: (s) => errors.push(s),
 	});
 	try {
 		new Image(testImagePng(10, 10), "image/png", { fallbackColor: (s) => s }).render(40);
 		await previews.openLatest();
-		assert.match(errors.at(-1)!, /Orca unavailable/);
+		assert.match(errors.at(-1)!, /Preview unavailable/);
 	} finally { previews.uninstall(); }
 });
 
@@ -56,4 +57,13 @@ it("saves the original image bytes and rejects unsupported formats", () => {
 	assert.deepEqual(readFileSync(path), Buffer.from(data, "base64"));
 	assert.equal(savePreview(data, "image/png"), path);
 	assert.throws(() => savePreview(data, "image/svg+xml"), /Unsupported/);
+});
+
+it("removes temporary previews on process exit without writing to the project", () => {
+	const moduleUrl = new URL("../src/preview.ts", import.meta.url).href;
+	const script = `import { savePreview } from ${JSON.stringify(moduleUrl)}; console.log(savePreview("aGVsbG8=", "image/png"));`;
+	const path = execFileSync(process.execPath, ["--input-type=module", "-e", script], { encoding: "utf8" }).trim();
+	assert.ok(path.includes("pi-orca-images-"));
+	assert.ok(!path.startsWith(process.cwd() + "/"));
+	assert.equal(existsSync(path), false);
 });

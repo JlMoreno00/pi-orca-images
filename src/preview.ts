@@ -1,6 +1,7 @@
 import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
@@ -15,15 +16,16 @@ const EXTENSIONS: Record<string, string> = {
 
 let previewDirectory: string | undefined;
 
-/** Orca only opens files within the workspace; retain copies across /reload. */
+/** Retain temporary previews until this module's process exits, including across /reload. */
 export function savePreview(data: string, mimeType: string): string {
 	const extension = EXTENSIONS[mimeType];
 	if (!extension) throw new Error(`Unsupported preview format: ${mimeType}`);
 	if (!previewDirectory) {
-		const root = join(process.cwd(), ".pi", "image-previews");
-		mkdirSync(root, { recursive: true, mode: 0o700 });
-		writeFileSync(join(root, ".gitignore"), "*\n");
-		previewDirectory = mkdtempSync(join(root, "session-"));
+		previewDirectory = mkdtempSync(join(tmpdir(), "pi-orca-images-"));
+		const directory = previewDirectory;
+		process.once("exit", () => {
+			try { rmSync(directory, { recursive: true, force: true }); } catch { /* OS temp cleanup is the fallback. */ }
+		});
 	}
 	const directory = previewDirectory;
 	const bytes = Buffer.from(data, "base64");
@@ -32,9 +34,9 @@ export function savePreview(data: string, mimeType: string): string {
 	return path;
 }
 
-export async function openInOrca(path: string): Promise<void> {
-	const executable = process.env.ORCA_CLI_COMMAND || (process.env.ORCA_DEV_REPO_ROOT ? "orca-dev" : "orca");
-	await run(executable, ["file", "open", path, "--focus", "--json"], { timeout: 10_000 });
+export async function openInPreview(path: string): Promise<void> {
+	if (process.platform !== "darwin") throw new Error("Opening previews requires macOS Preview.");
+	await run("/usr/bin/open", ["-a", "Preview", path], { timeout: 10_000 });
 }
 
 const PREVIEW = Symbol.for("pi-orca-images.preview");
@@ -53,9 +55,9 @@ export function installPreviews(options: {
 	let active = true;
 	const open = async (path: string) => {
 		try {
-			await (options.open ?? openInOrca)(path);
+			await (options.open ?? openInPreview)(path);
 		} catch (error) {
-			if (active) options.onError(`Could not open image in Orca: ${error instanceof Error ? error.message : String(error)}`);
+			if (active) options.onError(`Could not open image in Preview: ${error instanceof Error ? error.message : String(error)}`);
 		}
 	};
 	prototype.render = function (width) {
