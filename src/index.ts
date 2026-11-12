@@ -4,6 +4,7 @@ import { completeSubcommand, SUBCOMMANDS } from "./commands.ts";
 import { decide, type Decision, labelsEnabled, OWNED_ENV } from "./detect.ts";
 import { type EditorWatcher, watchEditors } from "./labels.ts";
 import { installShim, type Shim, type ShimTarget } from "./shim.ts";
+import { installPreviews } from "./preview.ts";
 import { formatStatus } from "./status.ts";
 import { testImagePng } from "./test-image.ts";
 
@@ -32,8 +33,13 @@ export default function piOrcaImages(pi: ExtensionAPI) {
 	const labels = labelsEnabled(process.env);
 	let shim: Shim | undefined;
 	let watcher: EditorWatcher | undefined;
+	let previews: ReturnType<typeof installPreviews> | undefined;
 
 	pi.on("session_start", async (_event, ctx) => {
+		if (ctx.hasUI && decision.action === "apply") {
+			previews?.uninstall();
+			previews = installPreviews({ onError: (message) => ctx.ui.notify(message, "error") });
+		}
 		const repaint = decision.action === "apply" && decision.protocol === "kitty";
 		if (!ctx.hasUI || (!repaint && !labels)) return;
 		// The widget factory is the only public hook that hands an extension the TUI instance.
@@ -57,6 +63,8 @@ export default function piOrcaImages(pi: ExtensionAPI) {
 	});
 
 	pi.on("session_shutdown", async (event) => {
+		previews?.uninstall();
+		previews = undefined;
 		// The watcher styles labels through this session's ctx, which goes stale on replacement.
 		watcher?.uninstall();
 		watcher = undefined;
@@ -80,7 +88,7 @@ export default function piOrcaImages(pi: ExtensionAPI) {
 	});
 
 	pi.registerCommand(COMMAND, {
-		description: "Inline images in Orca: status, test, or redraw",
+		description: "Inline images in Orca: status, test, redraw, or open",
 		getArgumentCompletions: completeSubcommand,
 		handler: async (args, ctx) => {
 			const sub = (args ?? "").trim() || "status";
@@ -97,6 +105,9 @@ export default function piOrcaImages(pi: ExtensionAPI) {
 				);
 			} else if (sub === "test") {
 				pi.appendEntry(TEST_ENTRY, { width: 240, height: 120 });
+			} else if (sub === "open") {
+				if (previews) await previews.openLatest();
+				else ctx.ui.notify("Image previews are not active in this terminal.", "warning");
 			} else if (sub === "redraw") {
 				if (shim) shim.recover();
 				else ctx.ui.notify("pi-orca-images is not active in this terminal; nothing to redraw.", "warning");

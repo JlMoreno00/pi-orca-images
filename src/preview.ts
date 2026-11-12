@@ -1,0 +1,96 @@
+import { execFile } from "node:child_process";
+import { createHash } from "node:crypto";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { pathToFileURL } from "node:url";
+import { promisify } from "node:util";
+import { Image, truncateToWidth } from "@earendil-works/pi-tui";
+
+const run = promisify(execFile);
+const EXTENSIONS: Record<string, string> = {
+	"image/png": "png", "image/jpeg": "jpg", "image/gif": "gif",
+	"image/webp": "webp", "image/bmp": "bmp", "image/tiff": "tiff",
+	"image/avif": "avif", "image/heic": "heic",
+};
+
+let previewDirectory: string | undefined;
+
+/** Retain temporary previews until this module's process exits, including across /reload. */
+export function savePreview(data: string, mimeType: string): string {
+	const extension = EXTENSIONS[mimeType];
+	if (!extension) throw new Error(`Unsupported preview format: ${mimeType}`);
+	if (!previewDirectory) {
+		previewDirectory = mkdtempSync(join(tmpdir(), "pi-orca-images-"));
+		const directory = previewDirectory;
+		process.once("exit", () => {
+			try { rmSync(directory, { recursive: true, force: true }); } catch { /* OS temp cleanup is the fallback. */ }
+		});
+	}
+	const directory = previewDirectory;
+	const bytes = Buffer.from(data, "base64");
+	const path = join(directory, `${createHash("sha256").update(bytes).digest("hex")}.${extension}`);
+	writeFileSync(path, bytes, { mode: 0o600 });
+	return path;
+}
+
+export async function openInPreview(path: string): Promise<void> {
+	if (process.platform !== "darwin") throw new Error("Opening previews requires macOS Preview.");
+	await run("/usr/bin/open", ["-a", "Preview", path], { timeout: 10_000 });
+}
+
+const PREVIEW = Symbol.for("pi-orca-images.preview");
+type PreviewHost = typeof Image.prototype & { [PREVIEW]?: { uninstall(): void } };
+
+export function installPreviews(options: {
+	open?: (path: string) => Promise<void>;
+	save?: (data: string, mimeType: string) => string;
+	onError: (message: string) => void;
+}) {
+	const prototype = Image.prototype as PreviewHost;
+	prototype[PREVIEW]?.uninstall();
+	const originalRender = prototype.render;
+	const paths = new WeakMap<Image, string | null>();
+	let latest: string | undefined;
+	let active = true;
+	const open = async (path: string) => {
+		try {
+			await (options.open ?? openInPreview)(path);
+		} catch (error) {
+			if (active) options.onError(`Could not open image in Preview: ${error instanceof Error ? error.message : String(error)}`);
+		}
+	};
+	prototype.render = function (width) {
+		const lines = originalRender.call(this, width);
+		if (!active) return lines;
+		if (!paths.has(this)) {
+			// Pi exposes no image-data accessor; fail closed if its internal fields change.
+			const source = this as unknown as { base64Data?: string; mimeType?: string };
+			try {
+				paths.set(this, typeof source.base64Data === "string" && typeof source.mimeType === "string"
+					? (options.save ?? savePreview)(source.base64Data, source.mimeType) : null);
+			} catch {
+				paths.set(this, null);
+			}
+		}
+		const path = paths.get(this);
+		if (!path) return lines;
+		latest = path;
+		const label = truncateToWidth("Open image", width);
+		return [...lines, `\x1b]8;;${pathToFileURL(path).href}\x07\x1b[4m${label}\x1b[24m\x1b]8;;\x07`];
+	};
+	const preview = {
+		async openLatest() {
+			if (latest) await open(latest);
+			else options.onError("No image has been rendered yet. Try /orca-images test first.");
+		},
+		uninstall() {
+			if (!active) return;
+			active = false;
+			prototype.render = originalRender;
+			if (prototype[PREVIEW] === preview) delete prototype[PREVIEW];
+		},
+	};
+	prototype[PREVIEW] = preview;
+	return preview;
+}

@@ -8,6 +8,7 @@ describe("completeSubcommand", () => {
 			{ value: "status", label: "status" },
 			{ value: "test", label: "test" },
 			{ value: "redraw", label: "redraw" },
+			{ value: "open", label: "open" },
 		]);
 	});
 
