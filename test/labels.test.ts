@@ -149,6 +149,72 @@ describe("image labels: render", () => {
 	});
 });
 
+describe("image labels: draft state", () => {
+	it("lists draft labels in text order with their paths", () => {
+		const { editor, labels, type } = setup();
+		type(PASTE("/tmp/a.png"));
+		type(PASTE("/tmp/b.png"));
+		type("\x1b[D");
+		type("\x1b[D"); // a label is one cursor step
+		type(PASTE("/tmp/b.png"));
+		assert.equal(editor.getText(), "[Image 1] [Image 3] [Image 2] ");
+		assert.deepEqual(labels.entries(), [
+			{ id: 1, path: "/tmp/a.png" },
+			{ id: 3, path: "/tmp/b.png" },
+			{ id: 2, path: "/tmp/b.png" },
+		]);
+	});
+
+	it("leaves out deleted and typed labels", () => {
+		const { editor, labels, type } = setup();
+		type(PASTE("/tmp/a.png\n/tmp/b.png"));
+		type(BACKSPACE);
+		type(BACKSPACE);
+		typeText(editor, "[Image 7]");
+		assert.deepEqual(labels.entries(), [{ id: 1, path: "/tmp/a.png" }]);
+	});
+
+	it("is empty after submit", () => {
+		const { labels, type } = setup();
+		type(PASTE("/tmp/a.png"));
+		type(ENTER);
+		assert.deepEqual(labels.entries(), []);
+	});
+
+	it("reports the label touching the cursor", () => {
+		const { editor, labels, type } = setup();
+		typeText(editor, "see ");
+		type(PASTE("/tmp/a.png"));
+		typeText(editor, "and ");
+		type(PASTE("/tmp/b.png"));
+		typeText(editor, "ok");
+		assert.equal(labels.cursorLabel(), undefined);
+		type("\x1b[D");
+		type("\x1b[D");
+		type("\x1b[D");
+		assert.equal(labels.cursorLabel(), 2, "cursor right after [Image 2]");
+		type("\x1b[D");
+		assert.equal(labels.cursorLabel(), 2, "cursor right before [Image 2]");
+		type("\x1b[D");
+		assert.equal(labels.cursorLabel(), undefined);
+		type("\x01");
+		assert.equal(labels.cursorLabel(), undefined, "start of line");
+	});
+
+	it("counts pasted labels and remembers the last one", () => {
+		const { labels, type } = setup();
+		assert.equal(labels.pastes, 0);
+		assert.equal(labels.lastPasted, undefined);
+		type(PASTE("/tmp/a.png\n/tmp/b.png"));
+		assert.equal(labels.pastes, 2);
+		assert.equal(labels.lastPasted, 2);
+		type(ENTER);
+		type(PASTE("/tmp/b.png"));
+		assert.equal(labels.pastes, 3, "keeps counting across messages");
+		assert.equal(labels.lastPasted, 1);
+	});
+});
+
 describe("image labels: pathOf", () => {
 	it("returns the path of a label in the draft", () => {
 		const { labels, type } = setup();
@@ -213,7 +279,9 @@ describe("watchEditors", () => {
 		assert.equal(watcher.editors, 1);
 		assert.equal(watcher.pathOf(1), "/tmp/a.png");
 		assert.equal(watcher.pathOf(2), undefined);
+		assert.deepEqual(watcher.current()?.entries(), [{ id: 1, path: "/tmp/a.png" }]);
 		watcher.uninstall();
+		assert.equal(watcher.current(), undefined);
 		assert.equal(host.doRender, render);
 		editor.handleInput(PASTE("/tmp/b.png"));
 		assert.equal(editor.getText(), "[Image 1] /tmp/b.png");

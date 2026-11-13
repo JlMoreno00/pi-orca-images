@@ -1,7 +1,8 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Container, getCapabilities, Image, resetCapabilitiesCache, Text } from "@earendil-works/pi-tui";
+import { Carousel, createCarouselWidget } from "./carousel.ts";
 import { completeSubcommand, parseCommand, SUBCOMMANDS } from "./commands.ts";
-import { decide, type Decision, labelsEnabled, OWNED_ENV } from "./detect.ts";
+import { decide, type Decision, labelsEnabled, OWNED_ENV, previewEnabled } from "./detect.ts";
 import { type EditorWatcher, watchEditors } from "./labels.ts";
 import { installShim, type Shim, type ShimTarget } from "./shim.ts";
 import { installPreviews, openInPreview } from "./preview.ts";
@@ -11,6 +12,7 @@ import { testImagePng } from "./test-image.ts";
 const COMMAND = "orca-images";
 const TEST_ENTRY = "pi-orca-images:test";
 const WIDGET = "pi-orca-images:probe";
+const PREVIEW_WIDGET = "pi-orca-images:preview";
 const USAGE = `Usage: /${COMMAND} [${SUBCOMMANDS.join("|")}], or /${COMMAND} open N for [Image N]`;
 
 /** Apply the decision to the process environment, before Pi reads its capabilities. */
@@ -31,6 +33,9 @@ export default function piOrcaImages(pi: ExtensionAPI) {
 	const decision = decide(process.env);
 	applyDecision(decision);
 	const labels = labelsEnabled(process.env);
+	const preview = previewEnabled(process.env);
+	let carousel: Carousel | undefined;
+	let previewTui: { requestRender(): void } | undefined;
 	let shim: Shim | undefined;
 	let watcher: EditorWatcher | undefined;
 	let previews: ReturnType<typeof installPreviews> | undefined;
@@ -45,6 +50,7 @@ export default function piOrcaImages(pi: ExtensionAPI) {
 		// The widget factory is the only public hook that hands an extension the TUI instance.
 		ctx.ui.setWidget(WIDGET, (tui) => {
 			if (repaint) {
+				// SAFETY: installShim treats every TUI member except requestRender as optional and checks it.
 				shim = installShim(tui as unknown as ShimTarget);
 				// Resend whatever Pi drew before the fix was in place (first startup render, or a
 				// session switch on a Pi that calls this factory late). Deferred: Pi may call the
@@ -53,6 +59,7 @@ export default function piOrcaImages(pi: ExtensionAPI) {
 				setTimeout(() => installed.recover(), 0);
 			}
 			if (labels) {
+				// SAFETY: watchEditors only wraps doRender when present and finds editors by duck typing.
 				watcher = watchEditors(tui as unknown as ShimTarget, {
 					style: (label) => ctx.ui.theme.fg("accent", ctx.ui.theme.bold(label)),
 				});
@@ -60,7 +67,33 @@ export default function piOrcaImages(pi: ExtensionAPI) {
 			return { render: () => [], invalidate() {} };
 		});
 		ctx.ui.setWidget(WIDGET, undefined);
+		if (preview) {
+			const shown = new Carousel();
+			carousel = shown;
+			ctx.ui.setWidget(
+				PREVIEW_WIDGET,
+				(tui, theme) => {
+					previewTui = tui;
+					return createCarouselWidget({
+						// Read through the closure, never a stale session's ctx: watcher is reset on shutdown.
+						labels: () => (carousel === shown ? watcher?.current() : undefined),
+						carousel: shown,
+						theme: { header: (text) => theme.fg("muted", text), fallback: (text) => theme.fg("warning", text) },
+					});
+				},
+				{ placement: "aboveEditor" },
+			);
+		}
 	});
+
+	if (preview) {
+		const step = (delta: 1 | -1) => () => {
+			carousel?.step(delta);
+			previewTui?.requestRender();
+		};
+		pi.registerShortcut("ctrl+shift+left", { description: "Previous pasted image preview", handler: step(-1) });
+		pi.registerShortcut("ctrl+shift+right", { description: "Next pasted image preview", handler: step(1) });
+	}
 
 	pi.on("session_shutdown", async (event) => {
 		previews?.uninstall();
@@ -68,6 +101,8 @@ export default function piOrcaImages(pi: ExtensionAPI) {
 		// The watcher styles labels through this session's ctx, which goes stale on replacement.
 		watcher?.uninstall();
 		watcher = undefined;
+		carousel = undefined;
+		previewTui = undefined;
 		// On /resume, /new, /fork and /reload Pi draws the next transcript before session_start,
 		// so the repaint fix must stay in place; the next session reuses it (installShim is
 		// idempotent per TUI). Only quitting removes it.
@@ -111,6 +146,7 @@ export default function piOrcaImages(pi: ExtensionAPI) {
 						shim,
 						orcaVersion: process.env.ORCA_APP_VERSION ?? process.env.TERM_PROGRAM_VERSION,
 						labels: labels && watcher !== undefined,
+						preview: preview && carousel !== undefined,
 					}),
 					"info",
 				);

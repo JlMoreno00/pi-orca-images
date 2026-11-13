@@ -47,3 +47,8 @@ export function decide(env: Env): Decision {
 export function labelsEnabled(env: Env): boolean {
 	return !DISABLED.has((env.PI_IMAGE_LABELS ?? "").toLowerCase());
 }
+
+/** The preview above the prompt shows pasted labels, so it needs them; PI_IMAGE_PREVIEW=0 turns it off. */
+export function previewEnabled(env: Env): boolean {
+	return labelsEnabled(env) && !DISABLED.has((env.PI_IMAGE_PREVIEW ?? "").toLowerCase());
+}
