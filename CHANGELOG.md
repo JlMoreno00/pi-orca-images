@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.0
+
+- Open image previews: each inline image gets an **Open image** link, and `/orca-images open` opens the latest image in macOS Preview. Previews are written to temporary files. Thanks to [@Ky1ezer0](https://github.com/Ky1ezer0) (#1).
+
 ## 0.2.3
 
 - Fix: Pi crashed with "This extension ctx is stale after session replacement or reload" when an `[Image N]` label was in the prompt after `/resume`, `/new`, `/fork` or `/reload`. Pi hands extensions a Proxy over the TUI that ignores `delete`, so the old session's render hook was never removed and kept styling labels with its stale ctx.
