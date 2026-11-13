@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { basename } from "node:path";
 import { Image, truncateToWidth } from "@earendil-works/pi-tui";
 import type { ImageEntry, ImageLabels } from "./labels.ts";
+import { NO_PREVIEW_LINK } from "./preview.ts";
 
 /** The parts of the editor's image labels the carousel reads. */
 export type CarouselLabels = Pick<ImageLabels, "entries" | "cursorLabel" | "pastes" | "lastPasted">;
@@ -12,7 +13,8 @@ export interface CarouselView {
 	index: number;
 }
 
-export const CAROUSEL_HINT = "Ctrl+Shift+←/→";
+/** Shortcut hint for the legend: macOS key symbols there, key names elsewhere. */
+export const CAROUSEL_HINT = process.platform === "darwin" ? "⌃⇧←→" : "ctrl+shift ←→";
 /** Thumbnail size in terminal cells: small enough to keep the prompt in view. */
 const THUMBNAIL = { maxWidthCells: 24, maxHeightCells: 6 } as const;
 
@@ -83,16 +85,20 @@ export function loadImageFile(path: string): LoadedImage | undefined {
 export interface CarouselWidgetOptions {
 	labels: () => CarouselLabels | undefined;
 	carousel: Carousel;
-	theme: { header: (text: string) => string; fallback?: (text: string) => string };
+	theme: { accent: (text: string) => string; muted: (text: string) => string; fallback?: (text: string) => string };
 	load?: (path: string) => LoadedImage | undefined;
+	hint?: string;
 }
 
 /**
- * A preview above the prompt: a navigator header and one thumbnail of the selected image.
+ * A preview above the prompt: one thumbnail of the selected image with a compact navigator
+ * legend below it, `‹ [Image 2] ›  2/3 · ⌃⇧←→`, or just `[Image 1]` for a single image.
  * Terminals without inline images get Pi's text fallback (type, size and file name).
  */
 export function createCarouselWidget(options: CarouselWidgetOptions) {
 	const load = options.load ?? loadImageFile;
+	const { accent, muted } = options.theme;
+	const hint = options.hint ?? CAROUSEL_HINT;
 	const images = new Map<string, Image | null>();
 	return {
 		render(width: number): string[] {
@@ -107,20 +113,25 @@ export function createCarouselWidget(options: CarouselWidgetOptions) {
 			for (const cached of images.keys()) if (!live.has(cached)) images.delete(cached);
 
 			const { selected, index, entries } = view;
-			const header = `‹  [Image ${selected.id}] · ${index + 1}/${entries.length}  ›   ${CAROUSEL_HINT}`;
-			const lines = [truncateToWidth(options.theme.header(header), width)];
+			const label = accent(`[Image ${selected.id}]`);
+			const legend = entries.length === 1
+				? label
+				: `${muted("‹")} ${label} ${muted("›")}  ${muted(`${index + 1}/${entries.length} · ${hint}`)}`;
 			if (!images.has(key(selected))) {
 				const loaded = load(selected.path);
-				images.set(key(selected), loaded
+				const image = loaded
 					? new Image(loaded.data, loaded.mimeType, { fallbackColor: options.theme.fallback ?? ((s) => s) }, {
 						...THUMBNAIL,
 						filename: basename(selected.path),
 					})
-					: null);
+					: null;
+				// The legend below names the image; an Open image link there would crowd it.
+				if (image) Object.assign(image, { [NO_PREVIEW_LINK]: true });
+				images.set(key(selected), image);
 			}
 			const image = images.get(key(selected));
-			if (!image) return [...lines, truncateToWidth(options.theme.header(`Cannot read ${selected.path}`), width)];
-			return [...lines, ...image.render(width)];
+			const body = image ? image.render(width) : [truncateToWidth(muted(`Cannot read ${selected.path}`), width)];
+			return [...body, truncateToWidth(legend, width)];
 		},
 		invalidate() {
 			for (const image of images.values()) image?.invalidate();

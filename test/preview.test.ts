@@ -3,7 +3,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { it } from "node:test";
 import { Container, Image } from "@earendil-works/pi-tui";
-import { installPreviews, savePreview } from "../src/preview.ts";
+import { installPreviews, NO_PREVIEW_LINK, savePreview } from "../src/preview.ts";
 import { testImagePng } from "../src/test-image.ts";
 
 it("adds a link once, opens latest, and restores Image", async () => {
@@ -28,6 +28,17 @@ it("adds a link once, opens latest, and restores Image", async () => {
 		previews.uninstall();
 	}
 	assert.equal(Image.prototype.render, original);
+});
+
+it("skips images marked as thumbnails", () => {
+	const previews = installPreviews({ save: () => "/tmp/thumb.png", onError: (message) => assert.fail(message) });
+	try {
+		const image = new Image(testImagePng(10, 10), "image/png", { fallbackColor: (s) => s });
+		Object.assign(image, { [NO_PREVIEW_LINK]: true });
+		assert.ok(!image.render(40).join("").includes("Open image"));
+	} finally {
+		previews.uninstall();
+	}
 });
 
 it("reports open failures and leaves images usable when saving fails", async () => {

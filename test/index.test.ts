@@ -215,7 +215,7 @@ describe("pasted image preview", () => {
 				theme: { fg: (_c: string, s: string) => s, bold: (s: string) => s },
 				setWidget(key: string, factory?: Factory, options?: { placement?: string }) {
 					if (!factory) return void widgets.delete(key);
-					widgets.set(key, { widget: factory(tui, { fg: (_c: string, s: string) => s }) as Widget, placement: options?.placement });
+					widgets.set(key, { widget: factory(tui, { fg: (_c: string, s: string) => s, bold: (s: string) => s }) as Widget, placement: options?.placement });
 				},
 			},
 		};
@@ -243,14 +243,14 @@ describe("pasted image preview", () => {
 			assert.deepEqual(preview.widget.render(80), [], "nothing to show before a paste");
 			t.paste(t.images[0]!);
 			t.paste(t.images[1]!);
-			assert.match(preview.widget.render(80)[0] ?? "", /\[Image 2\] · 2\/2/);
+			assert.match(preview.widget.render(80).at(-1) ?? "", /\[Image 2\].*2\/2/);
 			assert.deepEqual([...t.shortcuts.keys()].sort(), ["ctrl+shift+left", "ctrl+shift+right"]);
 			const renders = t.tui.renders.length;
 			await t.shortcuts.get("ctrl+shift+right")?.handler({});
-			assert.match(preview.widget.render(80)[0] ?? "", /\[Image 1\] · 1\/2/);
+			assert.match(preview.widget.render(80).at(-1) ?? "", /\[Image 1\].*1\/2/);
 			assert.ok(t.tui.renders.length > renders, "a step requests a render");
 			await t.shortcuts.get("ctrl+shift+left")?.handler({});
-			assert.match(preview.widget.render(80)[0] ?? "", /\[Image 2\] · 2\/2/);
+			assert.match(preview.widget.render(80).at(-1) ?? "", /\[Image 2\].*2\/2/);
 			t.editor.handleInput("\r");
 			assert.deepEqual(preview.widget.render(80), [], "cleared once the message is sent");
 		} finally {

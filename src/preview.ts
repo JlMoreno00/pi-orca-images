@@ -40,6 +40,8 @@ export async function openInPreview(path: string): Promise<void> {
 }
 
 const PREVIEW = Symbol.for("pi-orca-images.preview");
+/** Set on an Image to keep it without an Open image link, e.g. the pasted-image thumbnail. */
+export const NO_PREVIEW_LINK = Symbol.for("pi-orca-images.no-preview-link");
 type PreviewHost = typeof Image.prototype & { [PREVIEW]?: { uninstall(): void } };
 
 export function installPreviews(options: {
@@ -62,9 +64,10 @@ export function installPreviews(options: {
 	};
 	prototype.render = function (width) {
 		const lines = originalRender.call(this, width);
-		if (!active) return lines;
+		if (!active || (this as { [NO_PREVIEW_LINK]?: boolean })[NO_PREVIEW_LINK]) return lines;
 		if (!paths.has(this)) {
 			// Pi exposes no image-data accessor; fail closed if its internal fields change.
+			// SAFETY: both fields are type-checked below before use.
 			const source = this as unknown as { base64Data?: string; mimeType?: string };
 			try {
 				paths.set(this, typeof source.base64Data === "string" && typeof source.mimeType === "string"

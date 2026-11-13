@@ -78,7 +78,11 @@ export default function piOrcaImages(pi: ExtensionAPI) {
 						// Read through the closure, never a stale session's ctx: watcher is reset on shutdown.
 						labels: () => (carousel === shown ? watcher?.current() : undefined),
 						carousel: shown,
-						theme: { header: (text) => theme.fg("muted", text), fallback: (text) => theme.fg("warning", text) },
+						theme: {
+							accent: (text) => theme.fg("accent", theme.bold(text)),
+							muted: (text) => theme.fg("muted", text),
+							fallback: (text) => theme.fg("warning", text),
+						},
 					});
 				},
 				{ placement: "aboveEditor" },

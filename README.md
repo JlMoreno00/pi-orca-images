@@ -47,15 +47,17 @@ It recognizes pastes made only of existing image files (`png`, `jpg`, `gif`, `we
 
 ## Pasted image preview
 
-While the prompt has pasted images, a small thumbnail of one of them is shown above it, with a navigator header:
+While the prompt has pasted images, a small thumbnail of one of them is shown above it, with a compact navigator legend below the thumbnail:
 
 ```text
-‹  [Image 2] · 2/3  ›   Ctrl+Shift+←/→
+‹ [Image 2] ›  2/3 · ⌃⇧←→
 ```
+
+With a single pasted image the legend is just `[Image 1]`. The thumbnail has no **Open image** link; Cmd-click its `[Image N]` label in the prompt instead.
 
 It shows the image you just pasted; moving the cursor onto an `[Image N]` label shows that one, and **Ctrl+Shift+←/→** steps to the previous or next image. Only one thumbnail is drawn at a time, so the prompt stays in view and every terminal that draws Pi's images draws it the same way. The preview disappears when you send the message.
 
-In terminals without inline images the header is followed by a text line with the image type, size and file name. Set `PI_IMAGE_PREVIEW=0` to turn the preview off; it is also off when `PI_IMAGE_LABELS=0`.
+In terminals without inline images the legend follows a text line with the image type, size and file name. Set `PI_IMAGE_PREVIEW=0` to turn the preview off; it is also off when `PI_IMAGE_LABELS=0`.
 
 ## Open image previews
 
