@@ -126,6 +126,55 @@ describe("image labels: render", () => {
 		assert.match(body, /<\[Image 1\]>/);
 		assert.doesNotMatch(body, /<\[Image 9\]>/);
 	});
+
+	it("links known labels to their image file", () => {
+		const { editor, type } = setup();
+		type(PASTE("/tmp/a.png"));
+		typeText(editor, "[Image 9]");
+		const body = editor.render(80).slice(1, -1).join("\n");
+		assert.ok(body.includes("\x1b]8;;file:///tmp/a.png\x07<[Image 1]>\x1b]8;;\x07"));
+		assert.equal(body.split("\x1b]8;;").length - 1, 2, "only the known label is linked");
+	});
+
+	it("encodes paths with spaces in the link", () => {
+		const { editor, type } = setup();
+		IMAGES.add("/tmp/my shot.png");
+		try {
+			type(PASTE("'/tmp/my shot.png'"));
+			const body = editor.render(80).slice(1, -1).join("\n");
+			assert.ok(body.includes("\x1b]8;;file:///tmp/my%20shot.png\x07"));
+		} finally {
+			IMAGES.delete("/tmp/my shot.png");
+		}
+	});
+});
+
+describe("image labels: pathOf", () => {
+	it("returns the path of a label in the draft", () => {
+		const { labels, type } = setup();
+		type(PASTE("/tmp/a.png\n/tmp/b.png"));
+		assert.equal(labels.pathOf(1), "/tmp/a.png");
+		assert.equal(labels.pathOf(2), "/tmp/b.png");
+		assert.equal(labels.pathOf(3), undefined);
+	});
+
+	it("keeps the labels of the last sent message after submit", () => {
+		const { editor, labels, type } = setup();
+		type(PASTE("/tmp/b.png"));
+		type(ENTER);
+		assert.equal(labels.pathOf(1), "/tmp/b.png");
+		typeText(editor, "/orca-images open 1");
+		type(ENTER);
+		assert.equal(labels.pathOf(1), "/tmp/b.png", "a message without labels keeps the previous ones");
+	});
+
+	it("prefers the draft over the last sent message", () => {
+		const { labels, type } = setup();
+		type(PASTE("/tmp/a.png"));
+		type(ENTER);
+		type(PASTE("/tmp/b.png"));
+		assert.equal(labels.pathOf(1), "/tmp/b.png");
+	});
 });
 
 describe("image labels: lifecycle", () => {
@@ -162,6 +211,8 @@ describe("watchEditors", () => {
 		editor.handleInput(PASTE("/tmp/a.png"));
 		assert.equal(editor.getText(), "[Image 1] ");
 		assert.equal(watcher.editors, 1);
+		assert.equal(watcher.pathOf(1), "/tmp/a.png");
+		assert.equal(watcher.pathOf(2), undefined);
 		watcher.uninstall();
 		assert.equal(host.doRender, render);
 		editor.handleInput(PASTE("/tmp/b.png"));

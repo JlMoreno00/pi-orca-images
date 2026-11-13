@@ -41,6 +41,8 @@ Orca renders inline images through xterm.js's image addon. Three things keep Pi'
 
 Paste an image (or drop an image file) into Pi's prompt and the path is shown as a bold, colored `[Image 1]` label, as in OpenCode. Labels are numbered per message, move and delete as one unit, and become the real path again when you send the message, so the model sees exactly what it saw before.
 
+Each label is also a link to its image file: **Cmd-click** `[Image 1]` to check what you pasted before sending it. In Orca this opens an image tab with zoom controls; other terminals open it if they support OSC 8 links (iTerm2, Ghostty, WezTerm, Kitty). In any terminal on macOS, `/orca-images open 1` opens `[Image 1]` in Preview. It looks in the current prompt first, then in the last sent message that had labels, since typing the command replaces the prompt.
+
 It recognizes pastes made only of existing image files (`png`, `jpg`, `gif`, `webp`, `bmp`, `tiff`, `heic`, `avif`): plain paths, `~/` paths, quoted or backslash-escaped paths, and `file://` URLs. Text that mixes a path with other words is left alone. This works in every terminal, not only Orca, including Pi's own clipboard paste. Set `PI_IMAGE_LABELS=0` to turn it off.
 
 ## Open image previews
@@ -60,6 +62,7 @@ The saved bytes are those available to Pi and may already have been resized by a
 | `/orca-images` or `/orca-images status` | Shows the detection decision, Pi's active image protocol, and whether the repaint fix and image labels are on |
 | `/orca-images test` | Draws a test gradient (it is not sent to the model) |
 | `/orca-images open` | Opens the last rendered image in macOS Preview |
+| `/orca-images open N` | Opens the pasted `[Image N]` in macOS Preview, from the prompt or the last sent message |
 | `/orca-images redraw` | Re-sends every visible image right now |
 
 ## Configuration

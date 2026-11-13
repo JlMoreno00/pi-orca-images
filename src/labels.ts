@@ -1,3 +1,4 @@
+import { pathToFileURL } from "node:url";
 import { isExistingFile, parseImagePaths } from "./image-paths.ts";
 
 /** The parts of pi-tui's Editor this module wraps. */
@@ -27,6 +28,8 @@ export interface LabelOptions {
 
 export interface ImageLabels {
 	readonly count: number;
+	/** Path of `[Image N]` in the draft, or in the last sent message that had labels. */
+	pathOf(id: number): string | undefined;
 	uninstall(): void;
 }
 
@@ -57,6 +60,7 @@ export function installImageLabels(editor: LabelTarget, options: LabelOptions): 
 	};
 	const ownKeys = Object.keys(original).filter((key) => Object.hasOwn(editor, key));
 	const paths = new Map<number, string>();
+	let sent = new Map<number, string>();
 	let next = 1;
 
 	const known = (text: string) => [...text.matchAll(LABEL)].filter((m) => paths.has(Number(m[1])));
@@ -128,22 +132,31 @@ export function installImageLabels(editor: LabelTarget, options: LabelOptions): 
 		try {
 			return original.submitValue.call(this);
 		} finally {
+			if (paths.size > 0) sent = new Map(paths);
 			paths.clear();
 			next = 1;
 		}
 	};
 
+	// Each known label is an OSC 8 link to its file: Cmd-click opens it in terminals that support links.
 	editor.render = function (width: number) {
 		const lines = original.render.call(this, width);
 		if (paths.size === 0) return lines;
 		return lines.map((line) =>
-			line.replace(LABEL, (label, id: string) => (paths.has(Number(id)) ? options.style(label) : label)),
+			line.replace(LABEL, (label, id: string) => {
+				const path = paths.get(Number(id));
+				if (path === undefined) return label;
+				return `\x1b]8;;${pathToFileURL(path).href}\x07${options.style(label)}\x1b]8;;\x07`;
+			}),
 		);
 	};
 
 	const labels: ImageLabels = {
 		get count() {
 			return paths.size;
+		},
+		pathOf(id: number) {
+			return paths.get(id) ?? sent.get(id);
 		},
 		uninstall() {
 			const target = editor as unknown as Record<string, unknown>;
@@ -183,6 +196,8 @@ export function findEditors(root: unknown): LabelTarget[] {
 
 export interface EditorWatcher {
 	readonly editors: number;
+	/** Path of `[Image N]` in any watched editor, as in {@link ImageLabels.pathOf}. */
+	pathOf(id: number): string | undefined;
 	uninstall(): void;
 }
 
@@ -214,6 +229,13 @@ export function watchEditors(
 	return {
 		get editors() {
 			return installed.size;
+		},
+		pathOf(id: number) {
+			for (const labels of installed.values()) {
+				const path = labels.pathOf(id);
+				if (path !== undefined) return path;
+			}
+			return undefined;
 		},
 		uninstall() {
 			active = false;

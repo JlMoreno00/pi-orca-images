@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- `[Image N]` labels are links to their image file: Cmd-click a label to check the pasted image before sending it (Orca, iTerm2, Ghostty, WezTerm, Kitty).
+- `/orca-images open N` opens `[Image N]` in macOS Preview, from the prompt or the last sent message, in any terminal.
+
 ## 0.3.0
 
 - Open image previews: each inline image gets an **Open image** link, and `/orca-images open` opens the latest image in macOS Preview. Previews are written to temporary files. Thanks to [@Ky1ezer0](https://github.com/Ky1ezer0) (#1).

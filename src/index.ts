@@ -1,17 +1,17 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Container, getCapabilities, Image, resetCapabilitiesCache, Text } from "@earendil-works/pi-tui";
-import { completeSubcommand, SUBCOMMANDS } from "./commands.ts";
+import { completeSubcommand, parseCommand, SUBCOMMANDS } from "./commands.ts";
 import { decide, type Decision, labelsEnabled, OWNED_ENV } from "./detect.ts";
 import { type EditorWatcher, watchEditors } from "./labels.ts";
 import { installShim, type Shim, type ShimTarget } from "./shim.ts";
-import { installPreviews } from "./preview.ts";
+import { installPreviews, openInPreview } from "./preview.ts";
 import { formatStatus } from "./status.ts";
 import { testImagePng } from "./test-image.ts";
 
 const COMMAND = "orca-images";
 const TEST_ENTRY = "pi-orca-images:test";
 const WIDGET = "pi-orca-images:probe";
-const USAGE = `Usage: /${COMMAND} [${SUBCOMMANDS.join("|")}]`;
+const USAGE = `Usage: /${COMMAND} [${SUBCOMMANDS.join("|")}], or /${COMMAND} open N for [Image N]`;
 
 /** Apply the decision to the process environment, before Pi reads its capabilities. */
 function applyDecision(decision: Decision, env = process.env): void {
@@ -88,11 +88,22 @@ export default function piOrcaImages(pi: ExtensionAPI) {
 	});
 
 	pi.registerCommand(COMMAND, {
-		description: "Inline images in Orca: status, test, redraw, or open",
+		description: "Inline images in Orca: status, test, redraw, open, or open N for [Image N]",
 		getArgumentCompletions: completeSubcommand,
 		handler: async (args, ctx) => {
-			const sub = (args ?? "").trim() || "status";
-			if (sub === "status") {
+			const { sub, image } = { image: undefined, ...parseCommand(args) };
+			if (sub === "open" && image !== undefined) {
+				const path = watcher?.pathOf(image);
+				if (!path) {
+					ctx.ui.notify(`No [Image ${image}] in the prompt or the last sent message.`, "warning");
+					return;
+				}
+				try {
+					await openInPreview(path);
+				} catch (error) {
+					ctx.ui.notify(`Could not open [Image ${image}]: ${error instanceof Error ? error.message : String(error)}`, "error");
+				}
+			} else if (sub === "status") {
 				ctx.ui.notify(
 					formatStatus({
 						decision,
