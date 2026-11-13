@@ -234,6 +234,21 @@ describe("image labels: pathOf", () => {
 		assert.equal(labels.pathOf(1), "/tmp/b.png", "a message without labels keeps the previous ones");
 	});
 
+	it("ignores labels deleted from the draft and from the sent message", () => {
+		const { labels, type } = setup();
+		type(PASTE("/tmp/a.png"));
+		type(BACKSPACE);
+		type(BACKSPACE);
+		assert.equal(labels.pathOf(1), undefined, "deleted from the draft");
+		type(PASTE("/tmp/b.png"));
+		type(PASTE("/tmp/a.png"));
+		type(BACKSPACE);
+		type(BACKSPACE);
+		type(ENTER);
+		assert.equal(labels.pathOf(1), "/tmp/b.png");
+		assert.equal(labels.pathOf(2), undefined, "deleted before sending");
+	});
+
 	it("prefers the draft over the last sent message", () => {
 		const { labels, type } = setup();
 		type(PASTE("/tmp/a.png"));

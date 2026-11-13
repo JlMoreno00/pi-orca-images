@@ -101,23 +101,24 @@ export function createCarouselWidget(options: CarouselWidgetOptions) {
 				images.clear();
 				return [];
 			}
-			// Drop thumbnails of images no longer in the prompt.
-			const live = new Set(view.entries.map((entry) => entry.path));
-			for (const path of images.keys()) if (!live.has(path)) images.delete(path);
+			// Keyed by label, not path: pasting the same path again (an overwritten screenshot) reads it anew.
+			const key = (entry: ImageEntry) => `${entry.id}:${entry.path}`;
+			const live = new Set(view.entries.map(key));
+			for (const cached of images.keys()) if (!live.has(cached)) images.delete(cached);
 
 			const { selected, index, entries } = view;
 			const header = `‹  [Image ${selected.id}] · ${index + 1}/${entries.length}  ›   ${CAROUSEL_HINT}`;
 			const lines = [truncateToWidth(options.theme.header(header), width)];
-			if (!images.has(selected.path)) {
+			if (!images.has(key(selected))) {
 				const loaded = load(selected.path);
-				images.set(selected.path, loaded
+				images.set(key(selected), loaded
 					? new Image(loaded.data, loaded.mimeType, { fallbackColor: options.theme.fallback ?? ((s) => s) }, {
 						...THUMBNAIL,
 						filename: basename(selected.path),
 					})
 					: null);
 			}
-			const image = images.get(selected.path);
+			const image = images.get(key(selected));
 			if (!image) return [...lines, truncateToWidth(options.theme.header(`Cannot read ${selected.path}`), width)];
 			return [...lines, ...image.render(width)];
 		},

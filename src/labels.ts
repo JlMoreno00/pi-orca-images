@@ -145,11 +145,15 @@ export function installImageLabels(editor: LabelTarget, options: LabelOptions): 
 		return original.expandPasteMarkers.call(this, expanded);
 	};
 
+	/** Labels still in the draft text; `paths` also keeps labels the user deleted. */
+	const inDraft = () => new Map(known(editor.getText()).map((m) => [Number(m[1]), paths.get(Number(m[1])) ?? ""]));
+
 	editor.submitValue = function () {
+		const submitted = inDraft();
 		try {
 			return original.submitValue.call(this);
 		} finally {
-			if (paths.size > 0) sent = new Map(paths);
+			if (submitted.size > 0) sent = submitted;
 			paths.clear();
 			next = 1;
 		}
@@ -173,7 +177,7 @@ export function installImageLabels(editor: LabelTarget, options: LabelOptions): 
 			return paths.size;
 		},
 		pathOf(id: number) {
-			return paths.get(id) ?? sent.get(id);
+			return inDraft().get(id) ?? sent.get(id);
 		},
 		entries() {
 			return known(editor.getText()).map((m) => ({ id: Number(m[1]), path: paths.get(Number(m[1])) ?? "" }));

@@ -106,6 +106,25 @@ describe("carousel widget", () => {
 		assert.ok(lines.length >= 2, "a thumbnail (or its text fallback) follows the header");
 	});
 
+	it("reloads a path pasted again under a new label", () => {
+		const { labels, paste } = fakeLabels();
+		const loads: string[] = [];
+		const counting = (path: string) => {
+			loads.push(path);
+			return { data: "AAAA", mimeType: "image/png" };
+		};
+		const widget = createCarouselWidget({ labels: () => labels, carousel: new Carousel(), theme, load: counting });
+		paste(1);
+		widget.render(80);
+		widget.render(80);
+		assert.equal(loads.length, 1, "the same label reuses its thumbnail");
+		// fakeLabels gives every id its own path; a re-paste of the same file is a new id with the same path.
+		labels.entries = () => [{ id: 1, path: "/tmp/1.png" }, { id: 2, path: "/tmp/1.png" }];
+		paste(2);
+		widget.render(80);
+		assert.equal(loads.length, 2, "a new paste of the same path reads the file again");
+	});
+
 	it("reports an image that cannot be read", () => {
 		const { labels } = fakeLabels([9]);
 		const widget = createCarouselWidget({ labels: () => labels, carousel: new Carousel(), theme, load });
