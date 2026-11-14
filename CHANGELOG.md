@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.4.0
 
 - `[Image N]` labels are links to their image file: Cmd-click a label to check the pasted image before sending it (Orca, iTerm2, Ghostty, WezTerm, Kitty).
 - Pasted image preview: a thumbnail of one pasted image above the prompt, with a compact `[Image N] n/total · Ctrl+Shift+←/→` legend below it (just `[Image 1]` for a single image) and no Open image link. It follows new pastes and the label under the cursor; Ctrl+Shift+←/→ steps between images. `PI_IMAGE_PREVIEW=0` turns it off.
