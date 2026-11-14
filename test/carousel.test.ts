@@ -90,7 +90,7 @@ describe("Carousel selection", () => {
 });
 
 describe("carousel widget", () => {
-	const theme = { accent: (text: string) => `<${text}>`, muted: (text: string) => `(${text})` };
+	const theme = { muted: (text: string) => `(${text})` };
 	const load = (path: string) => (path === "/tmp/9.png" ? undefined : { data: "AAAA", mimeType: "image/png" });
 
 	it("renders nothing without images", () => {
@@ -100,16 +100,16 @@ describe("carousel widget", () => {
 
 	it("renders the thumbnail, then a compact navigator legend below it", () => {
 		const { labels } = fakeLabels([1, 2]);
-		const widget = createCarouselWidget({ labels: () => labels, carousel: new Carousel(), theme, load, hint: "⌃⇧←→" });
+		const widget = createCarouselWidget({ labels: () => labels, carousel: new Carousel(), theme, load });
 		const lines = widget.render(80);
 		assert.ok(lines.length >= 2, "a thumbnail (or its text fallback) comes first");
-		assert.equal(lines.at(-1), "(‹) <[Image 2]> (›)  (2/2 · ⌃⇧←→)");
+		assert.equal(lines.at(-1), "([Image 2] 2/2 · Ctrl+Shift+←/→)");
 	});
 
 	it("shows only the label when a single image is pasted", () => {
 		const { labels } = fakeLabels([1]);
 		const widget = createCarouselWidget({ labels: () => labels, carousel: new Carousel(), theme, load });
-		assert.equal(widget.render(80).at(-1), "<[Image 1]>");
+		assert.equal(widget.render(80).at(-1), "([Image 1])");
 	});
 
 	it("marks thumbnails so they get no Open image link", () => {
@@ -140,6 +140,6 @@ describe("carousel widget", () => {
 	it("reports an image that cannot be read", () => {
 		const { labels } = fakeLabels([9]);
 		const widget = createCarouselWidget({ labels: () => labels, carousel: new Carousel(), theme, load });
-		assert.deepEqual(widget.render(80), ["(Cannot read /tmp/9.png)", "<[Image 9]>"]);
+		assert.deepEqual(widget.render(80), ["(Cannot read /tmp/9.png)", "([Image 9])"]);
 	});
 });

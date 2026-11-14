@@ -50,7 +50,7 @@ It recognizes pastes made only of existing image files (`png`, `jpg`, `gif`, `we
 While the prompt has pasted images, a small thumbnail of one of them is shown above it, with a compact navigator legend below the thumbnail:
 
 ```text
-‹ [Image 2] ›  2/3 · ⌃⇧←→
+[Image 2] 2/3 · Ctrl+Shift+←/→
 ```
 
 With a single pasted image the legend is just `[Image 1]`. The thumbnail has no **Open image** link; Cmd-click its `[Image N]` label in the prompt instead.

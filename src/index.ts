@@ -79,7 +79,6 @@ export default function piOrcaImages(pi: ExtensionAPI) {
 						labels: () => (carousel === shown ? watcher?.current() : undefined),
 						carousel: shown,
 						theme: {
-							accent: (text) => theme.fg("accent", theme.bold(text)),
 							muted: (text) => theme.fg("muted", text),
 							fallback: (text) => theme.fg("warning", text),
 						},

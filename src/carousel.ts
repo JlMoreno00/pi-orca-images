@@ -13,8 +13,7 @@ export interface CarouselView {
 	index: number;
 }
 
-/** Shortcut hint for the legend: macOS key symbols there, key names elsewhere. */
-export const CAROUSEL_HINT = process.platform === "darwin" ? "⌃⇧←→" : "ctrl+shift ←→";
+export const CAROUSEL_HINT = "Ctrl+Shift+←/→";
 /** Thumbnail size in terminal cells: small enough to keep the prompt in view. */
 const THUMBNAIL = { maxWidthCells: 24, maxHeightCells: 6 } as const;
 
@@ -85,20 +84,18 @@ export function loadImageFile(path: string): LoadedImage | undefined {
 export interface CarouselWidgetOptions {
 	labels: () => CarouselLabels | undefined;
 	carousel: Carousel;
-	theme: { accent: (text: string) => string; muted: (text: string) => string; fallback?: (text: string) => string };
+	theme: { muted: (text: string) => string; fallback?: (text: string) => string };
 	load?: (path: string) => LoadedImage | undefined;
-	hint?: string;
 }
 
 /**
  * A preview above the prompt: one thumbnail of the selected image with a compact navigator
- * legend below it, `‹ [Image 2] ›  2/3 · ⌃⇧←→`, or just `[Image 1]` for a single image.
+ * legend below it, `[Image 2] 2/3 · Ctrl+Shift+←/→`, or just `[Image 1]` for a single image.
  * Terminals without inline images get Pi's text fallback (type, size and file name).
  */
 export function createCarouselWidget(options: CarouselWidgetOptions) {
 	const load = options.load ?? loadImageFile;
-	const { accent, muted } = options.theme;
-	const hint = options.hint ?? CAROUSEL_HINT;
+	const { muted } = options.theme;
 	const images = new Map<string, Image | null>();
 	return {
 		render(width: number): string[] {
@@ -113,10 +110,8 @@ export function createCarouselWidget(options: CarouselWidgetOptions) {
 			for (const cached of images.keys()) if (!live.has(cached)) images.delete(cached);
 
 			const { selected, index, entries } = view;
-			const label = accent(`[Image ${selected.id}]`);
-			const legend = entries.length === 1
-				? label
-				: `${muted("‹")} ${label} ${muted("›")}  ${muted(`${index + 1}/${entries.length} · ${hint}`)}`;
+			const label = `[Image ${selected.id}]`;
+			const legend = muted(entries.length === 1 ? label : `${label} ${index + 1}/${entries.length} · ${CAROUSEL_HINT}`);
 			if (!images.has(key(selected))) {
 				const loaded = load(selected.path);
 				const image = loaded
