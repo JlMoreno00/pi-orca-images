@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- `[Image N]` labels are links to their image file: Cmd-click a label to check the pasted image before sending it (Orca, iTerm2, Ghostty, WezTerm, Kitty).
+- Pasted image preview: a thumbnail of one pasted image above the prompt, with a compact `[Image N] n/total · Ctrl+Shift+←/→` legend below it (just `[Image 1]` for a single image) and no Open image link. It follows new pastes and the label under the cursor; Ctrl+Shift+←/→ steps between images. `PI_IMAGE_PREVIEW=0` turns it off.
+- `/orca-images status` reports whether the image preview is on.
+- `/orca-images open N` opens `[Image N]` in macOS Preview, from the prompt or the last sent message, in any terminal.
+
 ## 0.3.0
 
 - Open image previews: each inline image gets an **Open image** link, and `/orca-images open` opens the latest image in macOS Preview. Previews are written to temporary files. Thanks to [@Ky1ezer0](https://github.com/Ky1ezer0) (#1).

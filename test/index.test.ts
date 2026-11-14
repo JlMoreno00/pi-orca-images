@@ -28,12 +28,15 @@ function fakeTui() {
 	};
 }
 
-function load() {
+type Shortcut = { description?: string; handler: (ctx: unknown) => unknown };
+
+function load(shortcuts = new Map<string, Shortcut>()) {
 	const handlers = new Map<string, (event: unknown, ctx: unknown) => Promise<void>>();
 	const pi = {
 		on: (event: string, handler: (event: unknown, ctx: unknown) => Promise<void>) => void handlers.set(event, handler),
 		registerEntryRenderer() {},
 		registerCommand() {},
+		registerShortcut: (key: string, options: Shortcut) => void shortcuts.set(key, options),
 	};
 	piOrcaImages(pi as never);
 	return handlers;
@@ -174,4 +177,98 @@ describe("session lifecycle in Orca", () => {
 		await handlers.get("session_shutdown")?.({ type: "session_shutdown", reason: "quit" }, ctxFor(tui));
 		assert.equal(tui.doRender, render);
 	});
+});
+
+describe("pasted image preview", () => {
+	const PREVIEW_KEYS = [...ENV_KEYS, "PI_IMAGE_PREVIEW", "PI_IMAGE_LABELS"];
+	let savedPreview: Record<string, string | undefined> = {};
+	before(() => {
+		savedPreview = Object.fromEntries(PREVIEW_KEYS.map((key) => [key, process.env[key]]));
+		for (const key of PREVIEW_KEYS) delete process.env[key];
+	});
+	after(() => {
+		for (const [key, value] of Object.entries(savedPreview)) {
+			if (value === undefined) delete process.env[key];
+			else process.env[key] = value;
+		}
+	});
+
+	type Widget = { render(width: number): string[] };
+
+	function start(env: Record<string, string> = {}) {
+		Object.assign(process.env, env);
+		const dir = mkdtempSync(join(tmpdir(), "pi-orca-images-"));
+		const images = ["one.png", "two.png"].map((name) => {
+			const path = join(dir, name);
+			writeFileSync(path, "");
+			return path;
+		});
+		const editor = new Editor({ terminal: { rows: 40, columns: 80 }, requestRender() {} } as never, {
+			borderColor: (s: string) => s,
+			selectList: {} as never,
+		});
+		const tui = Object.assign(fakeTui(), { children: [editor] as unknown[] });
+		const widgets = new Map<string, { widget: Widget; placement?: string }>();
+		const ctx = {
+			hasUI: true,
+			ui: {
+				theme: { fg: (_c: string, s: string) => s, bold: (s: string) => s },
+				setWidget(key: string, factory?: Factory, options?: { placement?: string }) {
+					if (!factory) return void widgets.delete(key);
+					widgets.set(key, { widget: factory(tui, { fg: (_c: string, s: string) => s, bold: (s: string) => s }) as Widget, placement: options?.placement });
+				},
+			},
+		};
+		const shortcuts = new Map<string, Shortcut>();
+		const handlers = load(shortcuts);
+		const cleanup = async () => {
+			await handlers.get("session_shutdown")?.({ type: "session_shutdown", reason: "quit" }, ctx);
+			rmSync(dir, { recursive: true, force: true });
+			for (const key of Object.keys(env)) delete process.env[key];
+		};
+		const paste = (path: string) => {
+			editor.handleInput(`\x1b[200~${path}\x1b[201~`);
+			tui.doRender();
+		};
+		return { handlers, ctx, tui, editor, widgets, shortcuts, images, paste, cleanup };
+	}
+
+	it("shows the pasted image above the prompt and steps with Ctrl+Shift+arrows", async () => {
+		const t = start();
+		try {
+			await t.handlers.get("session_start")?.({ type: "session_start", reason: "startup" }, t.ctx);
+			t.tui.doRender();
+			const preview = [...t.widgets.values()].find((entry) => entry.placement === "aboveEditor");
+			assert.ok(preview, "an aboveEditor widget is registered");
+			assert.deepEqual(preview.widget.render(80), [], "nothing to show before a paste");
+			t.paste(t.images[0]!);
+			t.paste(t.images[1]!);
+			assert.match(preview.widget.render(80).at(-1) ?? "", /\[Image 2\].*2\/2/);
+			assert.deepEqual([...t.shortcuts.keys()].sort(), ["ctrl+shift+left", "ctrl+shift+right"]);
+			const renders = t.tui.renders.length;
+			await t.shortcuts.get("ctrl+shift+right")?.handler({});
+			assert.match(preview.widget.render(80).at(-1) ?? "", /\[Image 1\].*1\/2/);
+			assert.ok(t.tui.renders.length > renders, "a step requests a render");
+			await t.shortcuts.get("ctrl+shift+left")?.handler({});
+			assert.match(preview.widget.render(80).at(-1) ?? "", /\[Image 2\].*2\/2/);
+			t.editor.handleInput("\r");
+			assert.deepEqual(preview.widget.render(80), [], "cleared once the message is sent");
+		} finally {
+			await t.cleanup();
+		}
+	});
+
+	const disabled: Record<string, string>[] = [{ PI_IMAGE_PREVIEW: "0" }, { PI_IMAGE_LABELS: "0" }];
+	for (const env of disabled) {
+		it(`registers no preview with ${Object.keys(env)[0]}=0`, async () => {
+			const t = start(env);
+			try {
+				await t.handlers.get("session_start")?.({ type: "session_start", reason: "startup" }, t.ctx);
+				assert.equal([...t.widgets.values()].filter((entry) => entry.placement === "aboveEditor").length, 0);
+				await t.shortcuts.get("ctrl+shift+right")?.handler({});
+			} finally {
+				await t.cleanup();
+			}
+		});
+	}
 });

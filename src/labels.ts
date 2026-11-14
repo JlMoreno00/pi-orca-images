@@ -1,3 +1,4 @@
+import { pathToFileURL } from "node:url";
 import { isExistingFile, parseImagePaths } from "./image-paths.ts";
 
 /** The parts of pi-tui's Editor this module wraps. */
@@ -25,8 +26,23 @@ export interface LabelOptions {
 	isImageFile?: (path: string) => boolean;
 }
 
+export interface ImageEntry {
+	id: number;
+	path: string;
+}
+
 export interface ImageLabels {
 	readonly count: number;
+	/** Path of `[Image N]` in the draft, or in the last sent message that had labels. */
+	pathOf(id: number): string | undefined;
+	/** Pasted labels still in the draft, in text order. */
+	entries(): ImageEntry[];
+	/** Id of the draft label the cursor touches (inside, or right before or after), if any. */
+	cursorLabel(): number | undefined;
+	/** Labels created so far; grows on every image paste, across messages. */
+	readonly pastes: number;
+	/** Id of the most recently created label. */
+	readonly lastPasted: number | undefined;
 	uninstall(): void;
 }
 
@@ -57,7 +73,10 @@ export function installImageLabels(editor: LabelTarget, options: LabelOptions): 
 	};
 	const ownKeys = Object.keys(original).filter((key) => Object.hasOwn(editor, key));
 	const paths = new Map<number, string>();
+	let sent = new Map<number, string>();
 	let next = 1;
+	let pastes = 0;
+	let lastPasted: number | undefined;
 
 	const known = (text: string) => [...text.matchAll(LABEL)].filter((m) => paths.has(Number(m[1])));
 
@@ -72,6 +91,8 @@ export function installImageLabels(editor: LabelTarget, options: LabelOptions): 
 		const labels = parsed.paths.map((path) => {
 			const id = next++;
 			paths.set(id, path);
+			pastes++;
+			lastPasted = id;
 			return labelText(id);
 		});
 		const leading = parsed.leading || (spaceBefore ? " " : "");
@@ -124,20 +145,30 @@ export function installImageLabels(editor: LabelTarget, options: LabelOptions): 
 		return original.expandPasteMarkers.call(this, expanded);
 	};
 
+	/** Labels still in the draft text; `paths` also keeps labels the user deleted. */
+	const inDraft = () => new Map(known(editor.getText()).map((m) => [Number(m[1]), paths.get(Number(m[1])) ?? ""]));
+
 	editor.submitValue = function () {
+		const submitted = inDraft();
 		try {
 			return original.submitValue.call(this);
 		} finally {
+			if (submitted.size > 0) sent = submitted;
 			paths.clear();
 			next = 1;
 		}
 	};
 
+	// Each known label is an OSC 8 link to its file: Cmd-click opens it in terminals that support links.
 	editor.render = function (width: number) {
 		const lines = original.render.call(this, width);
 		if (paths.size === 0) return lines;
 		return lines.map((line) =>
-			line.replace(LABEL, (label, id: string) => (paths.has(Number(id)) ? options.style(label) : label)),
+			line.replace(LABEL, (label, id: string) => {
+				const path = paths.get(Number(id));
+				if (path === undefined) return label;
+				return `\x1b]8;;${pathToFileURL(path).href}\x07${options.style(label)}\x1b]8;;\x07`;
+			}),
 		);
 	};
 
@@ -145,7 +176,27 @@ export function installImageLabels(editor: LabelTarget, options: LabelOptions): 
 		get count() {
 			return paths.size;
 		},
+		pathOf(id: number) {
+			return inDraft().get(id) ?? sent.get(id);
+		},
+		entries() {
+			return known(editor.getText()).map((m) => ({ id: Number(m[1]), path: paths.get(Number(m[1])) ?? "" }));
+		},
+		cursorLabel() {
+			const cursor = editor.getCursor?.();
+			if (!cursor || paths.size === 0) return undefined;
+			const line = editor.getText().split("\n")[cursor.line] ?? "";
+			const hit = known(line).find((m) => cursor.col >= m.index && cursor.col <= m.index + m[0].length);
+			return hit ? Number(hit[1]) : undefined;
+		},
+		get pastes() {
+			return pastes;
+		},
+		get lastPasted() {
+			return lastPasted;
+		},
 		uninstall() {
+			// SAFETY: every key restored below is one of the editor methods captured in `original`.
 			const target = editor as unknown as Record<string, unknown>;
 			for (const [key, value] of Object.entries(original)) {
 				// Restore earlier own wrappers; otherwise fall back to the prototype method.
@@ -183,6 +234,10 @@ export function findEditors(root: unknown): LabelTarget[] {
 
 export interface EditorWatcher {
 	readonly editors: number;
+	/** Path of `[Image N]` in any watched editor, as in {@link ImageLabels.pathOf}. */
+	pathOf(id: number): string | undefined;
+	/** Labels of the editor that has pasted images in its draft, else of the first watched editor. */
+	current(): ImageLabels | undefined;
 	uninstall(): void;
 }
 
@@ -214,6 +269,17 @@ export function watchEditors(
 	return {
 		get editors() {
 			return installed.size;
+		},
+		pathOf(id: number) {
+			for (const labels of installed.values()) {
+				const path = labels.pathOf(id);
+				if (path !== undefined) return path;
+			}
+			return undefined;
+		},
+		current() {
+			const all = [...installed.values()];
+			return all.find((labels) => labels.count > 0) ?? all[0];
 		},
 		uninstall() {
 			active = false;

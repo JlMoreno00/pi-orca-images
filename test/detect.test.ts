@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { decide, labelsEnabled, OWNED_ENV } from "../src/detect.ts";
+import { decide, labelsEnabled, OWNED_ENV, previewEnabled } from "../src/detect.ts";
 
 const orca = { TERM_PROGRAM: "Orca", ORCA_IMAGE_PROTOCOL: "kitty" };
 
@@ -98,4 +98,21 @@ describe("labelsEnabled", () => {
 			assert.equal(labelsEnabled({ PI_IMAGE_LABELS: value }), false);
 		});
 	}
+});
+
+describe("previewEnabled", () => {
+	it("is on by default, in any terminal", () => {
+		assert.equal(previewEnabled({}), true);
+		assert.equal(previewEnabled({ TERM_PROGRAM: "ghostty" }), true);
+	});
+
+	for (const value of ["0", "false", "off", "no"]) {
+		it(`is off with PI_IMAGE_PREVIEW=${value}`, () => {
+			assert.equal(previewEnabled({ PI_IMAGE_PREVIEW: value }), false);
+		});
+	}
+
+	it("is off when image labels are off, since it previews them", () => {
+		assert.equal(previewEnabled({ PI_IMAGE_LABELS: "0" }), false);
+	});
 });

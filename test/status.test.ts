@@ -13,6 +13,7 @@ describe("formatStatus", () => {
 				shim: { renderPatched: true, focusPatched: true, recoveries: 3 },
 				orcaVersion: "1.4.229",
 				labels: true,
+				preview: true,
 			}),
 			[
 				"pi-orca-images",
@@ -20,6 +21,7 @@ describe("formatStatus", () => {
 				"  Pi image protocol: kitty",
 				"  repaint fix: on, focus recovery: on (recoveries: 3)",
 				"  image labels: on",
+				"  image preview: on",
 				"  Orca: 1.4.229",
 			].join("\n"),
 		);
@@ -33,6 +35,7 @@ describe("formatStatus", () => {
 				shim: undefined,
 				orcaVersion: undefined,
 				labels: false,
+				preview: false,
 			}),
 			[
 				"pi-orca-images",
@@ -40,6 +43,7 @@ describe("formatStatus", () => {
 				"  Pi image protocol: none",
 				"  repaint fix: off",
 				"  image labels: off (PI_IMAGE_LABELS)",
+				"  image preview: off (PI_IMAGE_PREVIEW)",
 				"  Orca: not detected",
 			].join("\n"),
 		);
